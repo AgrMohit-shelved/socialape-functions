@@ -24,6 +24,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = admin.firestore();
 
+// Get all scream as a json object
 app.get('/screams', (req, res) => {
   db.collection('screams')
     .orderBy('createdAt', 'desc')
@@ -43,10 +44,45 @@ app.get('/screams', (req, res) => {
     .catch((err) => console.error(err));
 });
 
-app.post('/scream', (req, res) => {
+const FBAuth = (req, res, next) => {
+  let idToken;
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith('Bearer ')
+  ) {
+    idToken = req.headers.authorization.split('Bearer ')[1];
+  } else {
+    console.error('No token found');
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  admin
+    .auth()
+    .verifyIdToken(idToken)
+    .then((decodedToken) => {
+      req.user = decodedToken;
+      console.log(decodedToken);
+      return db
+        .collection('users')
+        .where('userId', '==', req.user.uid)
+        .limit(1)
+        .get();
+    })
+    .then((data) => {
+      req.user.handle = data.docs[0].data().handle;
+      return next();
+    })
+    .catch((err) => {
+      console.error('Error while verifying token '.err);
+      return res.status(403).json(err);
+    });
+};
+
+// Post one scream
+app.post('/scream', FBAuth, (req, res) => {
   const newScream = {
     body: req.body.body,
-    userHandle: req.body.userHandle,
+    userHandle: req.user.handle,
     createdAt: new Date().toISOString(),
   };
 
@@ -62,6 +98,7 @@ app.post('/scream', (req, res) => {
 });
 
 const isEmail = (email) => {
+  // ESlint is disabled on following line becaue it is RegEx code, not JS
   // eslint-disable-next-line no-useless-escape
   const emailRegEx = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
   if (email.match(emailRegEx)) return true;
