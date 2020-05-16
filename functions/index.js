@@ -1,8 +1,14 @@
+/* eslint-disable consistent-return */
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const firebase = require('firebase');
 const app = require('express')();
-admin.initializeApp();
+
+const serviceAccount = require('/home/agrmohit/temp-firebase-keys/socialape-by-agrmohit-1af8304c7641.json');
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: 'https://socialape-by-agrmohit.firebaseio.com',
+});
 
 const firebaseConfig = {
   apiKey: 'AIzaSyDJDXOTvkoRflSMjchZGj3neTn2oXXZeOU',
@@ -55,6 +61,18 @@ app.post('/scream', (req, res) => {
     });
 });
 
+const isEmail = (email) => {
+  // eslint-disable-next-line no-useless-escape
+  const emailRegEx = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+  if (email.match(emailRegEx)) return true;
+  else return false;
+};
+
+const isEmpty = (string) => {
+  if (string.trim() === '') return true;
+  else return false;
+};
+
 // Signup Route
 app.post('/signup', (req, res) => {
   const newUser = {
@@ -64,7 +82,22 @@ app.post('/signup', (req, res) => {
     handle: req.body.handle,
   };
 
-  //TODO: validate user
+  let errors = {};
+
+  if (isEmpty(newUser.email)) {
+    errors.email = 'Must not be empty';
+  } else if (!isEmail(newUser.email)) {
+    errors.email = 'Must be a valid email address';
+  }
+
+  if (isEmpty(newUser.password)) errors.password = 'Must not be empty';
+  if (newUser.password !== newUser.confirmPassword) {
+    errors.confirmPassword = 'Passwords must match';
+  }
+  if (isEmpty(newUser.handle)) errors.handle = 'Must not be empty';
+
+  if (Object.keys(errors).length > 0) return res.status(400).json(errors);
+
   let token, userId;
   db.doc(`users/${newUser.handle}`)
     .get()
@@ -99,6 +132,39 @@ app.post('/signup', (req, res) => {
       } else {
         return res.status(500).json({ error: err.code });
       }
+    });
+});
+
+// Login Route
+app.post('/login', (req, res) => {
+  const user = {
+    email: req.body.email,
+    password: req.body.password,
+  };
+
+  let errors = {};
+
+  if (isEmpty(user.email)) errors.email = 'Must not be empty';
+  if (isEmpty(user.password)) errors.password = 'Must not be empty';
+
+  if (Object.keys(errors).length > 0) return res.status(400).json(errors);
+
+  firebase
+    .auth()
+    .signInWithEmailAndPassword(user.email, user.password)
+    .then((data) => {
+      return data.user.getIdToken();
+    })
+    .then((token) => {
+      return res.json({ token });
+    })
+    .catch((err) => {
+      console.error(err);
+      if (err.code === 'auth/wrong-password') {
+        return res
+          .status(403)
+          .json({ general: 'Wrong Credentials. Please try again' });
+      } else return res.status(500).json({ error: err.code });
     });
 });
 
