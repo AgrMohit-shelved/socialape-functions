@@ -17,6 +17,8 @@ module.exports = (req, res, next) => {
     .auth()
     .verifyIdToken(idToken)
     .then((decodedToken) => {
+      // TODO: Remove next line in final buld
+      console.log(decodedToken);
       req.user = decodedToken;
       return db
         .collection('users')
