@@ -17,7 +17,7 @@ module.exports = (req, res, next) => {
     .auth()
     .verifyIdToken(idToken)
     .then((decodedToken) => {
-      // TODO: Remove next line in final buld
+      // TODO: Remove next line in final build
       console.log(decodedToken);
       req.user = decodedToken;
       return db
@@ -28,6 +28,7 @@ module.exports = (req, res, next) => {
     })
     .then((data) => {
       req.user.handle = data.docs[0].data().handle;
+      req.user.imageURL = data.docs[0].data().imageURL;
       return next();
     })
     .catch((err) => {
